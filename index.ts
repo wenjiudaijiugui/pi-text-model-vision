@@ -110,6 +110,8 @@ export interface FocusedVisionConfig {
 	enabled: boolean;
 	routeInputImages: boolean;
 	routeToolResultImages: boolean;
+	/** Tool names whose image results skip the vision sidecar (e.g. freshly generated images). */
+	skipTools: readonly string[];
 	overrideRead: boolean;
 	provider: string;
 	model: string;
@@ -189,6 +191,14 @@ function reasoningEffort(value: string | undefined): VisionReasoning {
 	return "low";
 }
 
+function envToolSkipList(value: string | undefined): string[] {
+	if (value === undefined) return ["image_generate"];
+	return value
+		.split(",")
+		.map((entry) => entry.trim())
+		.filter(Boolean);
+}
+
 function envSetting(
 	env: NodeJS.ProcessEnv,
 	...names: string[]
@@ -229,6 +239,14 @@ export function loadFocusedVisionConfig(
 				"PI_VISION_ROUTER_TOOL_RESULTS",
 			),
 			true,
+		),
+		skipTools: envToolSkipList(
+			envSetting(
+				env,
+				"PI_TEXT_MODEL_VISION_SKIP_TOOLS",
+				"PI_FOCUSED_VISION_SKIP_TOOLS",
+				"PI_VISION_ROUTER_SKIP_TOOLS",
+			),
 		),
 		overrideRead: envBoolean(
 			envSetting(
@@ -931,6 +949,7 @@ export function registerFocusedVision(
 		pi.on("tool_result", async (event, ctx) => {
 			if (
 				event.isError ||
+				config.skipTools.includes(event.toolName) ||
 				!event.content.some((block) => block.type === "image") ||
 				!mainModelNeedsVision(ctx)
 			) {

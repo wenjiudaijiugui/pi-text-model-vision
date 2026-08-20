@@ -108,6 +108,7 @@ Set environment variables before starting Pi:
 - `PI_TEXT_MODEL_VISION_READ_OVERRIDE=0` keeps Pi's built-in `read` instead of registering the enhanced override.
 - `PI_TEXT_MODEL_VISION_INPUT=0` disables direct-attachment routing.
 - `PI_TEXT_MODEL_VISION_TOOL_RESULTS=0` disables image-result routing.
+- `PI_TEXT_MODEL_VISION_SKIP_TOOLS` is a comma-separated list of tool names whose image results skip the vision sidecar (default `image_generate`). Set it to an empty string to analyze every tool result, including freshly generated images. Skipping `image_generate` avoids a nested vision call — up to `2 x TIMEOUT_MS` — blocking the agent loop right after a slow image generation finishes.
 - `PI_TEXT_MODEL_VISION_MAX_IMAGES` controls uniform image sampling, from 1 to 32 (default 16).
 - `PI_TEXT_MODEL_VISION_MAX_TOKENS` controls Mimo report output, from 256 to 16384 (default 4096).
 - `PI_TEXT_MODEL_VISION_TIMEOUT_MS` controls Mimo timeout (default 180000).

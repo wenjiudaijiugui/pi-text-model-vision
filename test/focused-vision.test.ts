@@ -75,6 +75,7 @@ const CONFIG: FocusedVisionConfig = {
 	enabled: true,
 	routeInputImages: true,
 	routeToolResultImages: true,
+	skipTools: ["image_generate"],
 	overrideRead: true,
 	provider: "opencode-go",
 	model: "mimo-v2.5",
@@ -93,6 +94,7 @@ function harness(options?: {
 	completeContents?: unknown[][];
 	hasUI?: boolean;
 	sidecarAvailable?: boolean;
+	config?: FocusedVisionConfig;
 }) {
 	const handlers = new Map<string, EventHandler[]>();
 	const commands = new Map<string, unknown>();
@@ -169,7 +171,7 @@ function harness(options?: {
 		},
 	} as unknown as ExtensionContext;
 
-	registerFocusedVision(pi, CONFIG);
+	registerFocusedVision(pi, options?.config ?? CONFIG);
 	return {
 		ctx,
 		handler(name: string): EventHandler {
@@ -333,6 +335,98 @@ test("routes image tool results and carries nested usage", async () => {
 	);
 	assert.deepEqual(result.usage, USAGE);
 	assert.equal(h.completeCalls, 1);
+});
+
+test("skips the vision sidecar for tools on the skip list", async () => {
+	const h = harness({
+		branch: [
+			{
+				type: "message",
+				message: {
+					role: "user",
+					content: [{ type: "text", text: "生成一张方法流程图" }],
+				},
+			},
+		],
+	});
+	const event = {
+		type: "tool_result",
+		toolName: "image_generate",
+		toolCallId: "call-gen-1",
+		input: { prompt: "methodology figure" },
+		content: [
+			{ type: "text", text: "Generated 1536x1024 image." },
+			IMAGE,
+		],
+		details: undefined,
+		isError: false,
+	};
+	const result = await h.handler("tool_result")(event, h.ctx);
+
+	assert.equal(result, undefined);
+	assert.equal(h.completeCalls, 0);
+});
+
+test("analyzes skipped tools again when the skip list is cleared", async () => {
+	const h = harness({
+		branch: [
+			{
+				type: "message",
+				message: {
+					role: "user",
+					content: [{ type: "text", text: "生成一张方法流程图" }],
+				},
+			},
+		],
+		config: { ...CONFIG, skipTools: [] },
+	});
+	const event = {
+		type: "tool_result",
+		toolName: "image_generate",
+		toolCallId: "call-gen-2",
+		input: { prompt: "methodology figure" },
+		content: [
+			{ type: "text", text: "Generated 1536x1024 image." },
+			IMAGE,
+		],
+		details: undefined,
+		isError: false,
+	};
+	const result = (await h.handler("tool_result")(event, h.ctx)) as {
+		content: Array<{ type: string; text?: string }>;
+	};
+
+	assert.match(result.content.at(-1)?.text ?? "", /红色错误弹窗/);
+	assert.equal(h.completeCalls, 1);
+});
+
+test("loadFocusedVisionConfig resolves the tool skip list from the environment", () => {
+	assert.deepEqual(loadFocusedVisionConfig({}).skipTools, [
+		"image_generate",
+	]);
+	assert.deepEqual(
+		loadFocusedVisionConfig({
+			PI_TEXT_MODEL_VISION_SKIP_TOOLS: "",
+		}).skipTools,
+		[],
+	);
+	assert.deepEqual(
+		loadFocusedVisionConfig({
+			PI_TEXT_MODEL_VISION_SKIP_TOOLS: " image_generate ,, screenshot ",
+		}).skipTools,
+		["image_generate", "screenshot"],
+	);
+	assert.deepEqual(
+		loadFocusedVisionConfig({ PI_FOCUSED_VISION_SKIP_TOOLS: "foo" }).skipTools,
+		["foo"],
+	);
+	assert.deepEqual(
+		loadFocusedVisionConfig({
+			PI_TEXT_MODEL_VISION_SKIP_TOOLS: "first",
+			PI_VISION_ROUTER_SKIP_TOOLS: "second",
+		}).skipTools,
+		["first"],
+	);
 });
 
 test("does not route when the current main model already accepts images", async () => {

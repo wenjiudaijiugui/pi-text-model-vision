@@ -1,6 +1,6 @@
 {
   "name": "pi-text-model-vision",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Give Pi's text-only models visual perception through opencode-go/mimo-v2.5 and original-resolution focused cropping.",
   "type": "module",
   "license": "MIT",
